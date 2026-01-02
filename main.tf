@@ -1,84 +1,74 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 provider "aws" {
   region = var.aws_region
 }
 
-# -------------------
-# Networking
-# -------------------
-resource "aws_vpc" "this" {
-  cidr_block = "10.0.0.0/16"
+############################
+# Default VPC & Subnets
+############################
+data "aws_vpc" "default" {
+  default = true
 }
 
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
-}
-
-resource "aws_security_group" "app" {
-  vpc_id = aws_vpc.this.id
-
-  ingress {
-    from_port   = 5000
-    to_port     = 5000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
   }
 }
 
-# -------------------
-# ECS
-# -------------------
+############################
+# Reuse AWS ECS Service Role
+############################
+data "aws_iam_role" "ecs_execution" {
+  name = "AWSServiceRoleForECS"
+}
+
+############################
+# ECS Cluster
+############################
 resource "aws_ecs_cluster" "this" {
   name = "flask-cluster"
 }
 
-resource "aws_iam_role" "ecs_execution" {
-  name = "ecsExecutionRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ecs_execution" {
-  role       = aws_iam_role.ecs_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
+############################
+# ECS Task Definition
+############################
 resource "aws_ecs_task_definition" "this" {
   family                   = "flask-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 256
   memory                   = 512
-  execution_role_arn       = aws_iam_role.ecs_execution.arn
+
+  execution_role_arn = data.aws_iam_role.ecs_execution.arn
 
   container_definitions = jsonencode([
     {
-      name  = "flask"
-      image = var.docker_image
+      name      = "flask"
+      image     = var.docker_image
+      essential = true
       portMappings = [
-        { containerPort = 5000 }
+        {
+          containerPort = 5000
+          hostPort      = 5000
+        }
       ]
     }
   ])
 }
 
+############################
+# ECS Service
+############################
 resource "aws_ecs_service" "this" {
   name            = "flask-service"
   cluster         = aws_ecs_cluster.this.id
@@ -87,8 +77,8 @@ resource "aws_ecs_service" "this" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.public.id]
-    security_groups = [aws_security_group.app.id]
+    subnets          = data.aws_subnets.default.ids
     assign_public_ip = true
+    security_groups  = []
   }
 }
