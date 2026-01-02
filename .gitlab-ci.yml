@@ -1,4 +1,4 @@
-kstages:
+stages:
   - build
   - deploy
 
