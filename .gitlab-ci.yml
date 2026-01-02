@@ -1,9 +1,10 @@
-stages:
+kstages:
   - build
   - deploy
 
 variables:
   IMAGE_NAME: registry.gitlab.com/samuelthammond/flask-terraform-cicd/flask-demo
+  DOCKER_TLS_CERTDIR: ""
 
 # -------------------
 # Build Docker image
@@ -14,7 +15,6 @@ build:
   services:
     - docker:dind
   script:
-    # Safely login to GitLab registry using CI/CD variables
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - docker build -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA .
     - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
@@ -29,11 +29,8 @@ deploy:
   image: hashicorp/terraform:1.6.0
   script:
     - cd terraform
-    # Set AWS env variables for Terraform
-    - export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-    - export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-    - export AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
     - terraform init
     - terraform apply -auto-approve -var="docker_image=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
   only:
     - main
+
