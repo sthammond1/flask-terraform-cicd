@@ -1,10 +1,11 @@
 stages:
   - build
   - deploy
+  - destroy
 
 variables:
   IMAGE_NAME: registry.gitlab.com/samuelthammond/flask-terraform-cicd/flask-demo
-  DOCKER_TLS_CERTDIR: ""
+  DOCKER_TLS_CERTDIR: ""   # disables TLS for docker:dind
 
 # -------------------
 # Build Docker image
@@ -15,8 +16,11 @@ build:
   services:
     - docker:dind
   script:
+    # Login to GitLab Container Registry
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+    # Build and tag Docker image
     - docker build -t $IMAGE_NAME:$CI_COMMIT_SHORT_SHA .
+    # Push the Docker image
     - docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
   only:
     - main
@@ -26,10 +30,22 @@ build:
 # -------------------
 deploy:
   stage: deploy
-  image: hashicorp/terraform:1.6.0
+  image: hashicorp/terraform:light   # shell-enabled image
   script:
+    # Terraform init & apply
     - terraform init
     - terraform apply -auto-approve -var="docker_image=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
   only:
     - main
 
+# -------------------
+# Destroy AWS resources manually
+# -------------------
+destroy:
+  stage: destroy
+  image: hashicorp/terraform:light
+  script:
+    - terraform destroy -auto-approve -var="docker_image=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+  when: manual      # prevents accidental destruction
+  only:
+    - main
