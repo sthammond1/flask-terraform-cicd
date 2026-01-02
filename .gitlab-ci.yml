@@ -48,8 +48,15 @@ deploy:
 # -------------------
 destroy:
   stage: destroy
-  image: hashicorp/terraform:light
+  image: ubuntu:22.04
+  before_script:
+    # Install Terraform CLI (same as deploy)
+    - apt-get update && apt-get install -y wget unzip
+    - wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+    - unzip terraform_1.6.0_linux_amd64.zip
+    - mv terraform /usr/local/bin/
   script:
+    - terraform init
     - terraform destroy -auto-approve -var="docker_image=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
   when: manual      # prevents accidental destruction
   only:
