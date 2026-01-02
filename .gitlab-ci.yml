@@ -30,9 +30,14 @@ build:
 # -------------------
 deploy:
   stage: deploy
-  image: hashicorp/terraform:light   # shell-enabled image
+  image: ubuntu:22.04   # or alpine:3.18
+  before_script:
+    # Install Terraform CLI
+    - apt-get update && apt-get install -y wget unzip
+    - wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+    - unzip terraform_1.6.0_linux_amd64.zip
+    - mv terraform /usr/local/bin/
   script:
-    # Terraform init & apply
     - terraform init
     - terraform apply -auto-approve -var="docker_image=$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
   only:
