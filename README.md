@@ -13,7 +13,7 @@ This project demonstrates a complete DevOps workflow using Flask, Docker, GitLab
 - Docker
 - GitLab CI/CD
 - Terraform
-- AWS
+  
 
 ## Author
 Samuel Hammond
